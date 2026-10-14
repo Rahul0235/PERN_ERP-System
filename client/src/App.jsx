@@ -1,11 +1,1020 @@
-import React,{useEffect,useState} from 'react';
-import {api,money} from './lib/api.js';
-const emptyCustomer={companyName:'',contactPerson:'',mobile:'',email:'',city:''};
-function Login({onLogin}){const[email,setEmail]=useState('sales@example.com'),[password,setPassword]=useState('Sales@123'),[error,setError]=useState('');async function submit(e){e.preventDefault();try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem('token',r.token);localStorage.setItem('user',JSON.stringify(r.user));onLogin(r.user)}catch(e){setError(e.message)}}return <main className="login-wrap"><form className="panel login" onSubmit={submit}><div className="brand-mark">P</div><h1>PERN ERP</h1><p className="muted">Sign in to manage your sales workflow.</p>{error&&<p className="error">{error}</p>}<label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button className="primary">Sign in</button><small>Demo: admin@example.com / Admin@123</small></form></main>}
-function App(){const [user,setUser]=useState(()=>{try{return JSON.parse(localStorage.getItem('user'))}catch{return null}}),[tab,setTab]=useState('Enquiries'),[refresh,setRefresh]=useState(0),[toast,setToast]=useState('');const notify=m=>{setToast(m);setTimeout(()=>setToast(''),3500)};function logout(){localStorage.clear();setUser(null)}if(!user)return <Login onLogin={setUser}/>;return <div className="app-shell"><aside className="sidebar"><div className="logo"><span className="brand-mark">P</span><div><b>PERN ERP</b><small>Operations workspace</small></div></div><div className="nav-label">WORKSPACE</div>{['Enquiries','Quotations','Sales Orders','Inventory'].map(t=><button key={t} className={`nav-item ${tab===t?'active':''}`} onClick={()=>setTab(t)}><span>{({'Enquiries':'◫','Quotations':'▤','Sales Orders':'▣','Inventory':'▦'})[t]}</span>{t}</button>)}<div className="sidebar-bottom"><div className="avatar">{user.name?.[0]||'U'}</div><div className="user-info"><b>{user.name}</b><small>{user.role.replace('_',' ')}</small></div><button className="logout" onClick={logout}>↗</button></div></aside><main className="main"><header className="topbar"><div><span className="eyebrow">MANUFACTURING / SALES</span><h1>{tab}</h1></div><div className="top-right"><span className="status-dot"/> System online <span className="role-pill">{user.role}</span></div></header>{toast&&<div className="toast">✓ {toast}</div>}<section className="content">{tab==='Enquiries'?<Enquiries key={refresh} notify={notify} refresh={()=>setRefresh(x=>x+1)}/>:tab==='Quotations'?<Quotations key={refresh} notify={notify}/>:tab==='Sales Orders'?<Orders key={refresh} notify={notify} role={user.role}/>:<Inventory key={refresh} notify={notify} role={user.role}/>}</section><footer> P E R N  E R P <span>•</span> Sales and inventory control</footer></main></div>}
-function Enquiries({notify}){const [rows,setRows]=useState([]),[products,setProducts]=useState([]),[show,setShow]=useState(false),[customer,setCustomer]=useState(emptyCustomer),[items,setItems]=useState([{productId:'',quantity:1}]),[notes,setNotes]=useState(''),[requiredDate,setRequiredDate]=useState('');async function load(){try{const [e,p]=await Promise.all([api('/enquiries'),api('/products')]);setRows(e);setProducts(p);if(p.length)setItems(old=>old.map(x=>x.productId?x:{...x,productId:String(p[0].id)}))}catch(e){notify(e.message)}}useEffect(()=>{load()},[]);async function submit(e){e.preventDefault();try{await api('/enquiries',{method:'POST',body:JSON.stringify({customer,items:items.map(i=>({...i,productId:Number(i.productId),quantity:Number(i.quantity)})),notes,requiredDate})});setShow(false);setCustomer(emptyCustomer);setNotes('');setItems([{productId:String(products[0]?.id||''),quantity:1}]);notify('Enquiry created successfully');load()}catch(e){notify(e.message)}}return <><div className="stats"><Stat label="Total enquiries" value={rows.length} hint="All customer requests"/><Stat label="New" value={rows.filter(r=>r.status==='NEW').length} hint="Awaiting quotation"/><Stat label="Quoted" value={rows.filter(r=>r.status==='QUOTED').length} hint="In sales pipeline"/></div><div className="section-head"><div><h2>Customer enquiries</h2><p>Capture requirements and start the sales process.</p></div><button className="primary" onClick={()=>setShow(!show)}>＋ New enquiry</button></div>{show&&<form className="panel form-panel" onSubmit={submit}><h3>Customer details</h3><div className="form-grid">{[['companyName','Company name'],['contactPerson','Contact person'],['mobile','Mobile'],['email','Email'],['city','City']].map(([k,l])=><label key={k}>{l}<input required type={k==='email'?'email':'text'} value={customer[k]} onChange={e=>setCustomer({...customer,[k]:e.target.value})}/></label>)}</div><h3>Enquiry requirements</h3><div className="form-grid"><label>Required date<input type="date" value={requiredDate} onChange={e=>setRequiredDate(e.target.value)}/></label><label className="wide">Notes<input value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Optional requirements"/></label></div>{items.map((item,i)=><div className="item-row" key={i}><label>Product<select value={item.productId} onChange={e=>setItems(items.map((x,j)=>i===j?{...x,productId:e.target.value}:x))}>{products.map(p=><option key={p.id} value={p.id}>{p.product_code} — {p.product_name}</option>)}</select></label><label>Quantity<input type="number" min="1" value={item.quantity} onChange={e=>setItems(items.map((x,j)=>i===j?{...x,quantity:e.target.value}:x))} required/></label>{items.length>1&&<button type="button" className="text-btn" onClick={()=>setItems(items.filter((_,j)=>j!==i))}>Remove</button>}</div>)}<div className="form-actions"><button type="button" className="secondary" onClick={()=>setItems([...items,{productId:String(products[0]?.id||''),quantity:1}])}>＋ Add product</button><div><button type="button" className="secondary" onClick={()=>setShow(false)}>Cancel</button> <button className="primary">Save enquiry</button></div></div></form>}<div className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Enquiry no.</th><th>Customer</th><th>Products</th><th>Required date</th><th>Status</th><th>Created</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}><td className="code">{r.enquiry_number}</td><td><b>{r.company_name}</b><small>{r.contact_person}</small></td><td>{r.items?.map(i=><div key={i.productId}>{i.productName} <span className="muted">× {i.quantity}</span></div>)}</td><td>{r.required_date?String(r.required_date).slice(0,10):'—'}</td><td><Badge value={r.status}/></td><td>{new Date(r.created_at).toLocaleDateString()}</td></tr>)}{!rows.length&&<Empty cols={6} text="No enquiries yet. Create your first enquiry."/>}</tbody></table></div></div></>}
-function Quotations({notify}){const [rows,setRows]=useState([]),[enquiries,setEnquiries]=useState([]),[products,setProducts]=useState([]),[show,setShow]=useState(false),[enquiryId,setEnquiryId]=useState(''),[validUntil,setValidUntil]=useState(''),[items,setItems]=useState([{productId:'',quantity:1,discountPct:0,gstPct:18}]);async function load(){try{const [q,e,p]=await Promise.all([api('/quotations'),api('/enquiries'),api('/products')]);setRows(q);setEnquiries(e.filter(x=>!['WON','LOST'].includes(x.status)));setProducts(p);if(p.length)setItems(old=>old.map(x=>x.productId?x:{...x,productId:String(p[0].id)}));if(e.length&&!enquiryId)setEnquiryId(String(e[0].id))}catch(e){notify(e.message)}}useEffect(()=>{load()},[]);async function changeStatus(id,status){try{await api(`/quotations/${id}/status`,{method:'PATCH',body:JSON.stringify({status})});notify(`Quotation ${status.toLowerCase()}`);load()}catch(e){notify(e.message)}}async function convert(id){try{const order=await api(`/quotations/${id}/convert`,{method:'POST'});notify(`Sales Order ${order.order_number} created`);load()}catch(e){notify(e.message)}}async function submit(e){e.preventDefault();try{await api('/quotations',{method:'POST',body:JSON.stringify({enquiryId:Number(enquiryId),validUntil,items:items.map(i=>({...i,productId:Number(i.productId),quantity:Number(i.quantity),discountPct:Number(i.discountPct),gstPct:Number(i.gstPct)}))})});setShow(false);notify('Draft quotation created');load()}catch(e){notify(e.message)}}return <><div className="section-head"><div><h2>Quotations</h2><p>Price customer requirements, then send and record decisions.</p></div><button className="primary" onClick={()=>setShow(!show)}>＋ Create quotation</button></div>{show&&<form className="panel form-panel" onSubmit={submit}><h3>Quotation details</h3><div className="form-grid"><label>Enquiry<select required value={enquiryId} onChange={e=>{setEnquiryId(e.target.value);const en=enquiries.find(x=>String(x.id)===e.target.value);if(en?.items?.length)setItems(en.items.map(i=>({productId:String(i.productId),quantity:i.quantity,discountPct:0,gstPct:18})))}}>{enquiries.map(e=><option key={e.id} value={e.id}>{e.enquiry_number} — {e.company_name}</option>)}</select></label><label>Valid until<input type="date" value={validUntil} onChange={e=>setValidUntil(e.target.value)}/></label></div>{items.map((it,i)=><div className="item-row four" key={i}><label>Product<select value={it.productId} onChange={e=>setItems(items.map((x,j)=>i===j?{...x,productId:e.target.value}:x))}>{products.map(p=><option key={p.id} value={p.id}>{p.product_name}</option>)}</select></label><label>Qty<input type="number" min="1" value={it.quantity} onChange={e=>setItems(items.map((x,j)=>i===j?{...x,quantity:e.target.value}:x))}/></label><label>Discount %<input type="number" min="0" max="100" value={it.discountPct} onChange={e=>setItems(items.map((x,j)=>i===j?{...x,discountPct:e.target.value}:x))}/></label><label>GST %<input type="number" min="0" max="100" value={it.gstPct} onChange={e=>setItems(items.map((x,j)=>i===j?{...x,gstPct:e.target.value}:x))}/></label></div>)}<div className="form-actions"><button type="button" className="secondary" onClick={()=>setItems([...items,{productId:String(products[0]?.id||''),quantity:1,discountPct:0,gstPct:18}])}>＋ Add line</button><div><button type="button" className="secondary" onClick={()=>setShow(false)}>Cancel</button> <button className="primary">Save draft</button></div></div><small className="muted">Unit price is loaded from the product master and all totals are calculated by the backend.</small></form>}<div className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Quotation</th><th>Customer / enquiry</th><th>Grand total</th><th>Valid until</th><th>Status</th><th>Actions</th></tr></thead><tbody>{rows.map(q=><tr key={q.id}><td className="code">{q.quotation_number}<small>{q.items?.length||0} line items</small></td><td><b>{q.company_name}</b><small>{q.enquiry_number}</small></td><td><b>{money(q.grand_total)}</b></td><td>{q.valid_until?String(q.valid_until).slice(0,10):'—'}</td><td><Badge value={q.status}/></td><td className="actions">{q.status==='DRAFT'&&<button className="mini" onClick={()=>changeStatus(q.id,'SENT')}>Mark sent</button>}{q.status==='SENT'&&<><button className="mini good" onClick={()=>changeStatus(q.id,'ACCEPTED')}>Accept</button><button className="mini danger" onClick={()=>changeStatus(q.id,'REJECTED')}>Reject</button></>}{q.status==='ACCEPTED'&&<button className="mini good" onClick={()=>convert(q.id)}>Convert to order</button>}</td></tr>)}{!rows.length&&<Empty cols={6} text="No quotations yet."/>}</tbody></table></div></div></>}
-function Orders({notify,role}){const [rows,setRows]=useState([]),[show,setShow]=useState(null),[vehicleNumber,setVehicleNumber]=useState(''),[driverName,setDriverName]=useState('');async function load(){try{setRows(await api('/sales-orders'))}catch(e){notify(e.message)}}useEffect(()=>{load()},[]);async function act(id,action,body={}){try{await api(`/sales-orders/${id}/${action}`,{method:'POST',body:JSON.stringify(body)});notify(action==='confirm'?'Stock reserved and order confirmed':action==='dispatch'?'Dispatch processed':'Order cancelled');setShow(null);load()}catch(e){notify(e.message)}}return <><div className="section-head"><div><h2>Sales orders</h2><p>Confirm accepted orders, reserve inventory, and record dispatch.</p></div><button className="secondary" onClick={load}>↻ Refresh</button></div><div className="stats"><Stat label="All orders" value={rows.length} hint="Converted quotations"/><Stat label="Pending" value={rows.filter(o=>o.status==='PENDING').length} hint="Awaiting confirmation"/><Stat label="Confirmed" value={rows.filter(o=>o.status==='CONFIRMED').length} hint="Stock reserved"/><Stat label="Dispatched" value={rows.filter(o=>o.status==='DISPATCHED').length} hint="Fulfilled orders"/></div><div className="orders-grid">{rows.map(o=><article className="panel order-card" key={o.id}><div className="order-top"><span className="code">{o.order_number}</span><Badge value={o.status}/></div><h3>{o.company_name}</h3><p className="muted">Quotation {o.quotation_number} · {String(o.order_date).slice(0,10)}</p><div className="order-items">{o.items?.map(i=><div className="order-line" key={i.productId}><span>{i.productName}<small>Qty {i.quantity}</small></span><div className="stock-small"><b>{i.availableQty} available</b><small>{i.reservedQty} reserved</small></div></div>)}</div><div className="order-total"><span>Order total</span><b>{money(o.total_amount)}</b></div><div className="order-actions">{role==='ADMIN'&&o.status==='PENDING'&&<button className="primary" onClick={()=>act(o.id,'confirm')}>Confirm & reserve</button>}{role==='ADMIN'&&o.status==='CONFIRMED'&&<><button className="primary" onClick={()=>setShow(o.id)}>Process dispatch</button><button className="text-btn danger-text" onClick={()=>act(o.id,'cancel')}>Cancel order</button></>}{role==='ADMIN'&&o.status==='PENDING'&&<button className="text-btn danger-text" onClick={()=>act(o.id,'cancel')}>Cancel</button>}</div>{show===o.id&&<form className="dispatch-form" onSubmit={e=>{e.preventDefault();act(o.id,'dispatch',{vehicleNumber,driverName})}}><label>Vehicle number<input required value={vehicleNumber} onChange={e=>setVehicleNumber(e.target.value)} placeholder="GJ05AB1234"/></label><label>Driver name<input required value={driverName} onChange={e=>setDriverName(e.target.value)}/></label><button className="primary">Confirm dispatch</button><button type="button" className="secondary" onClick={()=>setShow(null)}>Cancel</button></form>}</article>)}{!rows.length&&<div className="panel empty-card">No sales orders yet. Accept a quotation and convert it into an order through the API.</div>}</div></>}
-function Inventory({notify,role}){const [rows,setRows]=useState([]),[edit,setEdit]=useState({});async function load(){try{setRows(await api('/inventory'))}catch(e){notify(e.message)}}useEffect(()=>{load()},[]);async function save(id){try{await api(`/inventory/${id}`,{method:'PATCH',body:JSON.stringify({physicalQty:Number(edit[id])})});notify('Inventory updated');load()}catch(e){notify(e.message)}}return <><div className="section-head"><div><h2>Inventory availability</h2><p>Available stock = physical quantity − reserved quantity.</p></div><button className="secondary" onClick={load}>↻ Refresh</button></div><div className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Product</th><th>Category / unit</th><th>Physical</th><th>Reserved</th><th>Available</th>{role==='ADMIN'&&<th>Update physical</th>}</tr></thead><tbody>{rows.map(r=><tr key={r.product_id}><td><b>{r.product_name}</b><small>{r.product_code}</small></td><td>{r.unit}</td><td>{r.physical_qty}</td><td>{r.reserved_qty}</td><td><span className={`qty ${r.available_qty<20?'low':''}`}>{r.available_qty}</span></td>{role==='ADMIN'&&<td><div className="inline-edit"><input aria-label="Physical quantity" type="number" min={r.reserved_qty} value={edit[r.product_id]??r.physical_qty} onChange={e=>setEdit({...edit,[r.product_id]:e.target.value})}/><button className="mini" onClick={()=>save(r.product_id)}>Save</button></div></td>}</tr>)}{!rows.length&&<Empty cols={role==='ADMIN'?6:5} text="No inventory records."/>}</tbody></table></div></div></>}
-function Stat({label,value,hint}){return <div className="panel stat"><span>{label}</span><strong>{value}</strong><small>{hint}</small></div>}function Badge({value}){return <span className={`badge ${String(value).toLowerCase()}`}>{value}</span>}function Empty({cols,text}){return <tr><td colSpan={cols} className="empty">{text}</td></tr>}
+import React, { useEffect, useState } from "react";
+import { api, money } from "./lib/api.js";
+const emptyCustomer = {
+  companyName: "",
+  contactPerson: "",
+  mobile: "",
+  email: "",
+  city: "",
+};
+function Login({ onLogin }) {
+  const [email, setEmail] = useState("sales@example.com"),
+    [password, setPassword] = useState("Sales@123"),
+    [error, setError] = useState("");
+  async function submit(e) {
+    e.preventDefault();
+    try {
+      const r = await api("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      localStorage.setItem("token", r.token);
+      localStorage.setItem("user", JSON.stringify(r.user));
+      onLogin(r.user);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  return (
+    <main className="login-wrap">
+      <form className="panel login" onSubmit={submit}>
+        <div className="brand-mark">P</div>
+        <h1>PERN ERP</h1>
+        <p className="muted">Sign in to manage your sales workflow.</p>
+        {error && <p className="error">{error}</p>}
+        <label>
+          Email
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </label>
+        <button className="primary">Sign in</button>
+        <small>Demo: admin@example.com / Admin@123</small>
+      </form>
+    </main>
+  );
+}
+function App() {
+  const [user, setUser] = useState(() => {
+      try {
+        return JSON.parse(localStorage.getItem("user"));
+      } catch {
+        return null;
+      }
+    }),
+    [tab, setTab] = useState("Enquiries"),
+    [refresh, setRefresh] = useState(0),
+    [toast, setToast] = useState("");
+  const notify = (m) => {
+    setToast(m);
+    setTimeout(() => setToast(""), 3500);
+  };
+  function logout() {
+    localStorage.clear();
+    setUser(null);
+  }
+  if (!user) return <Login onLogin={setUser} />;
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="logo">
+          <span className="brand-mark">P</span>
+          <div>
+            <b>PERN ERP</b>
+            <small>Operations workspace</small>
+          </div>
+        </div>
+        <div className="nav-label">WORKSPACE</div>
+        {["Enquiries", "Quotations", "Sales Orders", "Inventory"].map((t) => (
+          <button
+            key={t}
+            className={`nav-item ${tab === t ? "active" : ""}`}
+            onClick={() => setTab(t)}
+          >
+            <span>
+              {
+                {
+                  Enquiries: "◫",
+                  Quotations: "▤",
+                  "Sales Orders": "▣",
+                  Inventory: "▦",
+                }[t]
+              }
+            </span>
+            {t}
+          </button>
+        ))}
+        <div className="sidebar-bottom">
+          <div className="avatar">{user.name?.[0] || "U"}</div>
+          <div className="user-info">
+            <b>{user.name}</b>
+            <small>{user.role.replace("_", " ")}</small>
+          </div>
+          <button className="logout" onClick={logout}>
+            ↗
+          </button>
+        </div>
+      </aside>
+      <main className="main">
+        <header className="topbar">
+          <div>
+            <span className="eyebrow">MANUFACTURING / SALES</span>
+            <h1>{tab}</h1>
+          </div>
+          <div className="top-right">
+            <span className="status-dot" /> System online{" "}
+            <span className="role-pill">{user.role}</span>
+          </div>
+        </header>
+        {toast && <div className="toast">✓ {toast}</div>}
+        <section className="content">
+          {tab === "Enquiries" ? (
+            <Enquiries
+              key={refresh}
+              notify={notify}
+              refresh={() => setRefresh((x) => x + 1)}
+            />
+          ) : tab === "Quotations" ? (
+            <Quotations key={refresh} notify={notify} />
+          ) : tab === "Sales Orders" ? (
+            <Orders key={refresh} notify={notify} role={user.role} />
+          ) : (
+            <Inventory key={refresh} notify={notify} role={user.role} />
+          )}
+        </section>
+        <footer>
+          {" "}
+          P E R N E R P <span>•</span> Sales and inventory control
+        </footer>
+      </main>
+    </div>
+  );
+}
+function Enquiries({ notify }) {
+  const [rows, setRows] = useState([]),
+    [products, setProducts] = useState([]),
+    [show, setShow] = useState(false),
+    [customer, setCustomer] = useState(emptyCustomer),
+    [items, setItems] = useState([{ productId: "", quantity: 1 }]),
+    [notes, setNotes] = useState(""),
+    [requiredDate, setRequiredDate] = useState("");
+  async function load() {
+    try {
+      const [e, p] = await Promise.all([api("/enquiries"), api("/products")]);
+      setRows(e);
+      setProducts(p);
+      if (p.length)
+        setItems((old) =>
+          old.map((x) =>
+            x.productId ? x : { ...x, productId: String(p[0].id) },
+          ),
+        );
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+  async function submit(e) {
+    e.preventDefault();
+    try {
+      await api("/enquiries", {
+        method: "POST",
+        body: JSON.stringify({
+          customer,
+          items: items.map((i) => ({
+            ...i,
+            productId: Number(i.productId),
+            quantity: Number(i.quantity),
+          })),
+          notes,
+          requiredDate,
+        }),
+      });
+      setShow(false);
+      setCustomer(emptyCustomer);
+      setNotes("");
+      setItems([{ productId: String(products[0]?.id || ""), quantity: 1 }]);
+      notify("Enquiry created successfully");
+      load();
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  return (
+    <>
+      <div className="stats">
+        <Stat
+          label="Total enquiries"
+          value={rows.length}
+          hint="All customer requests"
+        />
+        <Stat
+          label="New"
+          value={rows.filter((r) => r.status === "NEW").length}
+          hint="Awaiting quotation"
+        />
+        <Stat
+          label="Quoted"
+          value={rows.filter((r) => r.status === "QUOTED").length}
+          hint="In sales pipeline"
+        />
+      </div>
+      <div className="section-head">
+        <div>
+          <h2>Customer enquiries</h2>
+          <p>Capture requirements and start the sales process.</p>
+        </div>
+        <button className="primary" onClick={() => setShow(!show)}>
+          ＋ New enquiry
+        </button>
+      </div>
+      {show && (
+        <form className="panel form-panel" onSubmit={submit}>
+          <h3>Customer details</h3>
+          <div className="form-grid">
+            {[
+              ["companyName", "Company name"],
+              ["contactPerson", "Contact person"],
+              ["mobile", "Mobile"],
+              ["email", "Email"],
+              ["city", "City"],
+            ].map(([k, l]) => (
+              <label key={k}>
+                {l}
+                <input
+                  required
+                  type={k === "email" ? "email" : "text"}
+                  value={customer[k]}
+                  onChange={(e) =>
+                    setCustomer({ ...customer, [k]: e.target.value })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <h3>Enquiry requirements</h3>
+          <div className="form-grid">
+            <label>
+              Required date
+              <input
+                type="date"
+                value={requiredDate}
+                onChange={(e) => setRequiredDate(e.target.value)}
+              />
+            </label>
+            <label className="wide">
+              Notes
+              <input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Optional requirements"
+              />
+            </label>
+          </div>
+          {items.map((item, i) => (
+            <div className="item-row" key={i}>
+              <label>
+                Product
+                <select
+                  value={item.productId}
+                  onChange={(e) =>
+                    setItems(
+                      items.map((x, j) =>
+                        i === j ? { ...x, productId: e.target.value } : x,
+                      ),
+                    )
+                  }
+                >
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.product_code} — {p.product_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Quantity
+                <input
+                  type="number"
+                  min="1"
+                  value={item.quantity}
+                  onChange={(e) =>
+                    setItems(
+                      items.map((x, j) =>
+                        i === j ? { ...x, quantity: e.target.value } : x,
+                      ),
+                    )
+                  }
+                  required
+                />
+              </label>
+              {items.length > 1 && (
+                <button
+                  type="button"
+                  className="text-btn"
+                  onClick={() => setItems(items.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+          <div className="form-actions">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() =>
+                setItems([
+                  ...items,
+                  { productId: String(products[0]?.id || ""), quantity: 1 },
+                ])
+              }
+            >
+              ＋ Add product
+            </button>
+            <div>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShow(false)}
+              >
+                Cancel
+              </button>{" "}
+              <button className="primary">Save enquiry</button>
+            </div>
+          </div>
+        </form>
+      )}
+      <div className="panel table-panel">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Enquiry no.</th>
+                <th>Customer</th>
+                <th>Products</th>
+                <th>Required date</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="code">{r.enquiry_number}</td>
+                  <td>
+                    <b>{r.company_name}</b>
+                    <small>{r.contact_person}</small>
+                  </td>
+                  <td>
+                    {r.items?.map((i) => (
+                      <div key={i.productId}>
+                        {i.productName}{" "}
+                        <span className="muted">× {i.quantity}</span>
+                      </div>
+                    ))}
+                  </td>
+                  <td>
+                    {r.required_date
+                      ? String(r.required_date).slice(0, 10)
+                      : "—"}
+                  </td>
+                  <td>
+                    <Badge value={r.status} />
+                  </td>
+                  <td>{new Date(r.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+              {!rows.length && (
+                <Empty
+                  cols={6}
+                  text="No enquiries yet. Create your first enquiry."
+                />
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+function Quotations({ notify }) {
+  const [rows, setRows] = useState([]),
+    [enquiries, setEnquiries] = useState([]),
+    [products, setProducts] = useState([]),
+    [show, setShow] = useState(false),
+    [enquiryId, setEnquiryId] = useState(""),
+    [validUntil, setValidUntil] = useState(""),
+    [items, setItems] = useState([
+      { productId: "", quantity: 1, discountPct: 0, gstPct: 18 },
+    ]);
+  async function load() {
+    try {
+      const [q, e, p] = await Promise.all([
+        api("/quotations"),
+        api("/enquiries"),
+        api("/products"),
+      ]);
+      setRows(q);
+      setEnquiries(e.filter((x) => !["WON", "LOST"].includes(x.status)));
+      setProducts(p);
+      if (p.length)
+        setItems((old) =>
+          old.map((x) =>
+            x.productId ? x : { ...x, productId: String(p[0].id) },
+          ),
+        );
+      if (e.length && !enquiryId) setEnquiryId(String(e[0].id));
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+  async function changeStatus(id, status) {
+    try {
+      await api(`/quotations/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      notify(`Quotation ${status.toLowerCase()}`);
+      load();
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  async function convert(id) {
+    try {
+      const order = await api(`/quotations/${id}/convert`, { method: "POST" });
+      notify(`Sales Order ${order.order_number} created`);
+      load();
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  async function submit(e) {
+    e.preventDefault();
+    try {
+      await api("/quotations", {
+        method: "POST",
+        body: JSON.stringify({
+          enquiryId: Number(enquiryId),
+          validUntil,
+          items: items.map((i) => ({
+            ...i,
+            productId: Number(i.productId),
+            quantity: Number(i.quantity),
+            discountPct: Number(i.discountPct),
+            gstPct: Number(i.gstPct),
+          })),
+        }),
+      });
+      setShow(false);
+      notify("Draft quotation created");
+      load();
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  return (
+    <>
+      <div className="section-head">
+        <div>
+          <h2>Quotations</h2>
+          <p>Price customer requirements, then send and record decisions.</p>
+        </div>
+        <button className="primary" onClick={() => setShow(!show)}>
+          ＋ Create quotation
+        </button>
+      </div>
+      {show && (
+        <form className="panel form-panel" onSubmit={submit}>
+          <h3>Quotation details</h3>
+          <div className="form-grid">
+            <label>
+              Enquiry
+              <select
+                required
+                value={enquiryId}
+                onChange={(e) => {
+                  setEnquiryId(e.target.value);
+                  const en = enquiries.find(
+                    (x) => String(x.id) === e.target.value,
+                  );
+                  if (en?.items?.length)
+                    setItems(
+                      en.items.map((i) => ({
+                        productId: String(i.productId),
+                        quantity: i.quantity,
+                        discountPct: 0,
+                        gstPct: 18,
+                      })),
+                    );
+                }}
+              >
+                {enquiries.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.enquiry_number} — {e.company_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Valid until
+              <input
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
+              />
+            </label>
+          </div>
+          {items.map((it, i) => (
+            <div className="item-row four" key={i}>
+              <label>
+                Product
+                <select
+                  value={it.productId}
+                  onChange={(e) =>
+                    setItems(
+                      items.map((x, j) =>
+                        i === j ? { ...x, productId: e.target.value } : x,
+                      ),
+                    )
+                  }
+                >
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.product_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Qty
+                <input
+                  type="number"
+                  min="1"
+                  value={it.quantity}
+                  onChange={(e) =>
+                    setItems(
+                      items.map((x, j) =>
+                        i === j ? { ...x, quantity: e.target.value } : x,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label>
+                Discount %
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={it.discountPct}
+                  onChange={(e) =>
+                    setItems(
+                      items.map((x, j) =>
+                        i === j ? { ...x, discountPct: e.target.value } : x,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label>
+                GST %
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={it.gstPct}
+                  onChange={(e) =>
+                    setItems(
+                      items.map((x, j) =>
+                        i === j ? { ...x, gstPct: e.target.value } : x,
+                      ),
+                    )
+                  }
+                />
+              </label>
+            </div>
+          ))}
+          <div className="form-actions">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() =>
+                setItems([
+                  ...items,
+                  {
+                    productId: String(products[0]?.id || ""),
+                    quantity: 1,
+                    discountPct: 0,
+                    gstPct: 18,
+                  },
+                ])
+              }
+            >
+              ＋ Add line
+            </button>
+            <div>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShow(false)}
+              >
+                Cancel
+              </button>{" "}
+              <button className="primary">Save draft</button>
+            </div>
+          </div>
+          <small className="muted">
+            Unit price is loaded from the product master and all totals are
+            calculated by the backend.
+          </small>
+        </form>
+      )}
+      <div className="panel table-panel">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Quotation</th>
+                <th>Customer / enquiry</th>
+                <th>Grand total</th>
+                <th>Valid until</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((q) => (
+                <tr key={q.id}>
+                  <td className="code">
+                    {q.quotation_number}
+                    <small>{q.items?.length || 0} line items</small>
+                  </td>
+                  <td>
+                    <b>{q.company_name}</b>
+                    <small>{q.enquiry_number}</small>
+                  </td>
+                  <td>
+                    <b>{money(q.grand_total)}</b>
+                  </td>
+                  <td>
+                    {q.valid_until ? String(q.valid_until).slice(0, 10) : "—"}
+                  </td>
+                  <td>
+                    <Badge value={q.status} />
+                  </td>
+                  <td className="actions">
+                    {q.status === "DRAFT" && (
+                      <button
+                        className="mini"
+                        onClick={() => changeStatus(q.id, "SENT")}
+                      >
+                        Mark sent
+                      </button>
+                    )}
+                    {q.status === "SENT" && (
+                      <>
+                        <button
+                          className="mini good"
+                          onClick={() => changeStatus(q.id, "ACCEPTED")}
+                        >
+                          Accept
+                        </button>
+                        <button
+                          className="mini danger"
+                          onClick={() => changeStatus(q.id, "REJECTED")}
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    {q.status === "ACCEPTED" && (
+                      <button
+                        className="mini good"
+                        onClick={() => convert(q.id)}
+                      >
+                        Convert to order
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!rows.length && <Empty cols={6} text="No quotations yet." />}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+function Orders({ notify, role }) {
+  const [rows, setRows] = useState([]),
+    [show, setShow] = useState(null),
+    [vehicleNumber, setVehicleNumber] = useState(""),
+    [driverName, setDriverName] = useState("");
+  async function load() {
+    try {
+      setRows(await api("/sales-orders"));
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+  async function act(id, action, body = {}) {
+    try {
+      await api(`/sales-orders/${id}/${action}`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      notify(
+        action === "confirm"
+          ? "Stock reserved and order confirmed"
+          : action === "dispatch"
+            ? "Dispatch processed"
+            : "Order cancelled",
+      );
+      setShow(null);
+      load();
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  return (
+    <>
+      <div className="section-head">
+        <div>
+          <h2>Sales orders</h2>
+          <p>
+            Confirm accepted orders, reserve inventory, and record dispatch.
+          </p>
+        </div>
+        <button className="secondary" onClick={load}>
+          ↻ Refresh
+        </button>
+      </div>
+      <div className="stats">
+        <Stat
+          label="All orders"
+          value={rows.length}
+          hint="Converted quotations"
+        />
+        <Stat
+          label="Pending"
+          value={rows.filter((o) => o.status === "PENDING").length}
+          hint="Awaiting confirmation"
+        />
+        <Stat
+          label="Confirmed"
+          value={rows.filter((o) => o.status === "CONFIRMED").length}
+          hint="Stock reserved"
+        />
+        <Stat
+          label="Dispatched"
+          value={rows.filter((o) => o.status === "DISPATCHED").length}
+          hint="Fulfilled orders"
+        />
+      </div>
+      <div className="orders-grid">
+        {rows.map((o) => (
+          <article className="panel order-card" key={o.id}>
+            <div className="order-top">
+              <span className="code">{o.order_number}</span>
+              <Badge value={o.status} />
+            </div>
+            <h3>{o.company_name}</h3>
+            <p className="muted">
+              Quotation {o.quotation_number} ·{" "}
+              {String(o.order_date).slice(0, 10)}
+            </p>
+            <div className="order-items">
+              {o.items?.map((i) => (
+                <div className="order-line" key={i.productId}>
+                  <span>
+                    {i.productName}
+                    <small>Qty {i.quantity}</small>
+                  </span>
+                  <div className="stock-small">
+                    <b>{i.availableQty} available</b>
+                    <small>{i.reservedQty} reserved</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="order-total">
+              <span>Order total</span>
+              <b>{money(o.total_amount)}</b>
+            </div>
+            <div className="order-actions">
+              {role === "ADMIN" && o.status === "PENDING" && (
+                <button
+                  className="primary"
+                  onClick={() => act(o.id, "confirm")}
+                >
+                  Confirm & reserve
+                </button>
+              )}
+              {role === "ADMIN" && o.status === "CONFIRMED" && (
+                <>
+                  <button className="primary" onClick={() => setShow(o.id)}>
+                    Process dispatch
+                  </button>
+                  <button
+                    className="text-btn danger-text"
+                    onClick={() => act(o.id, "cancel")}
+                  >
+                    Cancel order
+                  </button>
+                </>
+              )}
+              {role === "ADMIN" && o.status === "PENDING" && (
+                <button
+                  className="text-btn danger-text"
+                  onClick={() => act(o.id, "cancel")}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+            {show === o.id && (
+              <form
+                className="dispatch-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  act(o.id, "dispatch", { vehicleNumber, driverName });
+                }}
+              >
+                <label>
+                  Vehicle number
+                  <input
+                    required
+                    value={vehicleNumber}
+                    onChange={(e) => setVehicleNumber(e.target.value)}
+                    placeholder="GJ05AB1234"
+                  />
+                </label>
+                <label>
+                  Driver name
+                  <input
+                    required
+                    value={driverName}
+                    onChange={(e) => setDriverName(e.target.value)}
+                  />
+                </label>
+                <button className="primary">Confirm dispatch</button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setShow(null)}
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
+          </article>
+        ))}
+        {!rows.length && (
+          <div className="panel empty-card">
+            No sales orders yet. Accept a quotation and convert it into an order
+            through the API.
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+function Inventory({ notify, role }) {
+  const [rows, setRows] = useState([]),
+    [edit, setEdit] = useState({});
+  async function load() {
+    try {
+      setRows(await api("/inventory"));
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+  async function save(id) {
+    try {
+      await api(`/inventory/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ physicalQty: Number(edit[id]) }),
+      });
+      notify("Inventory updated");
+      load();
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  return (
+    <>
+      <div className="section-head">
+        <div>
+          <h2>Inventory availability</h2>
+          <p>Available stock = physical quantity − reserved quantity.</p>
+        </div>
+        <button className="secondary" onClick={load}>
+          ↻ Refresh
+        </button>
+      </div>
+      <div className="panel table-panel">
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Category / unit</th>
+                <th>Physical</th>
+                <th>Reserved</th>
+                <th>Available</th>
+                {role === "ADMIN" && <th>Update physical</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.product_id}>
+                  <td>
+                    <b>{r.product_name}</b>
+                    <small>{r.product_code}</small>
+                  </td>
+                  <td>{r.unit}</td>
+                  <td>{r.physical_qty}</td>
+                  <td>{r.reserved_qty}</td>
+                  <td>
+                    <span
+                      className={`qty ${r.available_qty < 20 ? "low" : ""}`}
+                    >
+                      {r.available_qty}
+                    </span>
+                  </td>
+                  {role === "ADMIN" && (
+                    <td>
+                      <div className="inline-edit">
+                        <input
+                          aria-label="Physical quantity"
+                          type="number"
+                          min={r.reserved_qty}
+                          value={edit[r.product_id] ?? r.physical_qty}
+                          onChange={(e) =>
+                            setEdit({ ...edit, [r.product_id]: e.target.value })
+                          }
+                        />
+                        <button
+                          className="mini"
+                          onClick={() => save(r.product_id)}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {!rows.length && (
+                <Empty
+                  cols={role === "ADMIN" ? 6 : 5}
+                  text="No inventory records."
+                />
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+function Stat({ label, value, hint }) {
+  return (
+    <div className="panel stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{hint}</small>
+    </div>
+  );
+}
+function Badge({ value }) {
+  return (
+    <span className={`badge ${String(value).toLowerCase()}`}>{value}</span>
+  );
+}
+function Empty({ cols, text }) {
+  return (
+    <tr>
+      <td colSpan={cols} className="empty">
+        {text}
+      </td>
+    </tr>
+  );
+}
 export default App;
